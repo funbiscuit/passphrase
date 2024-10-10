@@ -6,4 +6,4 @@ WORKDIR /app
 
 COPY . .
 
-CMD ["python", "./generate.py"]
+ENTRYPOINT ["python", "./generate.py"]
