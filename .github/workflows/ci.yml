@@ -32,5 +32,5 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push docker image
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: docker push "funbiscuit/passphrase:$APP_VERSION" && docker push funbiscuit/passphrase:latest
