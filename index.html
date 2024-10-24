@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Dropdowns with Tailwind CSS</title>
+    <!-- Include Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include FontAwesome for icons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/js/all.min.js" crossorigin="anonymous"></script>
+    <style>
+        /* Remove outline on button click, but keep on keyboard focus */
+        button:focus {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center relative">
+
+    <div class="text-center">
+        <div id="blockContainer" class="flex flex-wrap items-center justify-center space-x-4 mb-4">
+            <button
+                class="flex items-center justify-center w-10 h-10 bg-blue-500 text-white rounded-full shadow hover:bg-blue-600 focus:outline-none"
+                onclick="addBlock('noun')">+</button>
+        </div>
+
+        <div class="flex items-center justify-center mt-4">
+            <div class="output text-lg text-gray-700" id="output"></div>
+        </div>
+
+        <div class="flex items-center justify-center mt-4">
+            <button
+                class="flex items-center justify-center w-10 h-10 bg-green-500 text-white rounded-full shadow hover:bg-green-600 focus:outline-none"
+                onclick="updateOutput()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="content"></div>
+    <script>
+        const maxWordChars = 4;
+        const wordTypes = ['adj', 'noun', 'verb'];
+        const options = {
+            en: ['adjective', 'noun', 'verb'],
+            ru: ['прилагательное', 'существительное', 'глагол']
+        };
+        const wordTypeTitles = {
+            'adj': 'прилагательное',
+            'noun': 'существительное',
+            'verb': 'глагол',
+        };
+        const russianToEnglish = {
+            'а': 'f', 'б': ',', 'в': 'd', 'г': 'u', 'д': 'l', 'е': 't',
+            'ё': '`', 'ж': ';', 'з': 'p', 'и': 'b', 'й': 'q', 'к': 'r',
+            'л': 'k', 'м': 'v', 'н': 'y', 'о': 'j', 'п': 'g', 'р': 'h',
+            'с': 'c', 'т': 'n', 'у': 'e', 'ф': 'a', 'х': '[', 'ц': 'w',
+            'ч': 'x', 'ш': 'i', 'щ': 'o', 'ъ': ']', 'ы': 's', 'ь': 'm',
+            'э': '\'', 'ю': '.', 'я': 'z'
+        };
+        const dictsIndices = {};
+
+        function toggleDropdown(dropdown) {
+            const allDropdowns = document.querySelectorAll('.dropdown-content');
+            allDropdowns.forEach(content => {
+                if (!dropdown.contains(content)) {
+                    content.classList.add('hidden');
+                }
+            });
+            dropdown.querySelector('.dropdown-content').classList.toggle('hidden');
+        }
+
+        function selectOption(event, optionElement) {
+            event.stopPropagation();
+            const dropdown = optionElement.closest('.custom-dropdown');
+            dropdown.querySelector('span').textContent = optionElement.textContent;
+            dropdown.querySelector('span').dataset.wordType = optionElement.dataset.wordType;
+            dropdown.querySelector('.dropdown-content').classList.add('hidden');
+            updateOutput();
+        }
+
+        function updateOptions(dropdown) {
+            const content = dropdown.querySelector('.dropdown-content');
+            content.innerHTML = '';
+            wordTypes.forEach(wordType => {
+                const div = document.createElement('div');
+                div.className = 'p-2 hover:bg-blue-100 cursor-pointer';
+                div.onclick = (event) => selectOption(event, div);
+                div.textContent = wordTypeTitles[wordType];
+                div.dataset.wordType = wordType;
+                content.appendChild(div);
+            });
+        }
+
+        async function updateOutput() {
+
+            for (const wordType of wordTypes) {
+                if (!(wordType in dictsIndices)) {
+                    dictsIndices[wordType] = await createIndex(`dict/${wordType}-ru.txt`);
+                }
+            }
+
+            function converToEnglish(russianText) {
+                let englishText = '';
+                for (let char of russianText) {
+                    englishText += russianToEnglish[char] || '';
+                }
+                return englishText;
+            }
+
+            async function readTextFile(filePath) {
+                try {
+                    const response = await fetch(filePath);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return await response.text();
+                } catch (error) {
+                    console.error('Error fetching the text file:', error);
+                }
+            }
+
+            const dicts = {
+                'adj': 'dict/russian-adjectives.txt',
+                'noun': 'dict/russian-nouns.txt',
+                'verb': 'dict/russian-verbs.txt',
+            };
+
+            async function createIndex(filename) {
+                const words = (await readTextFile(filename)).split('\n');
+                const wordsIndex = {};
+
+                for (let word of words) {
+                    let key = word.trim();
+                    if (key.length > maxWordChars) {
+                        key = key.substring(0, maxWordChars);
+                    }
+                    if (wordsIndex[key]) {
+                        wordsIndex[key].push(word.trim());
+                    } else {
+                        wordsIndex[key] = [word.trim()];
+                    }
+                }
+                return wordsIndex;
+            }
+
+            function generateSecureRandomInt(maxValue) {
+                const array = new Uint32Array(1);
+                window.crypto.getRandomValues(array);
+                return array[0] % maxValue;
+            }
+
+            function randomWord(index) {
+                const ind = generateSecureRandomInt(Object.keys(index).length);
+                return index[Object.keys(index)[ind]][0];
+            }
+
+            const dropdowns = document.querySelectorAll('.custom-dropdown');
+            let selectedWordTypes = Array.from(dropdowns)
+                .map(dropdown => dropdown.querySelector('span'))
+                .map(sp => sp.dataset.wordType);
+
+            let phrase = '';
+            let passwordRu = '';
+            let passwordEn = '';
+            let combinations = 1;
+            for (const wordType of selectedWordTypes) {
+                let word = null;
+                for (const [key, index] of Object.entries(dictsIndices)) {
+                    if (wordType === key) {
+                        word = randomWord(index);
+                        combinations *= Object.keys(index).length;
+                        break;
+                    }
+                }
+
+                if (word === null) {
+                    throw new Error(`Unknown word type "${wordType}"`);
+                }
+
+                let shortWord = word.trim();
+                if (shortWord.length > maxWordChars) {
+                    shortWord = shortWord.substring(0, maxWordChars);
+                }
+
+                phrase = `${phrase} ${word}`.trim();
+                passwordRu = `${passwordRu}${shortWord}`;
+                passwordEn = `${passwordEn}${converToEnglish(shortWord)}`;
+            }
+
+            document.getElementById('output').innerHTML = `
+                <p>Фраза: <b>${phrase}</b></p>
+                <p>Пароль (по первым ${maxWordChars} символам): ${passwordRu}</p>
+                <p>Пароль (в англ. раскладке): ${passwordEn}</p>
+                <p>Количество комбинаций: 2^${Math.floor(Math.log2(combinations))} (без учёта морфологии)</p>
+                <p>Длина эквивалентного пароля из a-zA-Z0-9: ${Math.floor(Math.log2(combinations) / Math.log2(62))} (без учёта морфологии)</p>
+            `;
+        }
+
+        function addBlock(wordType, skipUpdate=false) {
+            const container = document.getElementById('blockContainer');
+            const newBlock = document.createElement('div');
+            newBlock.className = 'block bg-white shadow-md p-4 rounded-lg relative';
+            newBlock.innerHTML = `
+                <button class="remove-btn absolute -top-3 -right-3 w-8 h-8 text-lg text-white bg-gray-600 hover:bg-red-600 rounded-full flex items-center justify-center focus:outline-none transition-transform transform hover:scale-110" onclick="removeBlock(this)">&times;</button>
+                <div class="relative mt-2">
+                    <div class="custom-dropdown w-48 p-2 border border-gray-300 bg-white rounded-md text-gray-700 shadow-sm cursor-pointer hover:bg-gray-50" onclick="toggleDropdown(this)">
+                        <span data-word-type="${wordType}">${wordTypeTitles[wordType]}</span>
+                        <div class="dropdown-content absolute left-0 mt-4 w-full bg-white border border-gray-200 rounded shadow-md hidden">
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.insertBefore(newBlock, container.lastElementChild);
+            updateOptions(newBlock.querySelector('.custom-dropdown'));
+            if (!skipUpdate) {
+                updateOutput();
+            }
+        }
+
+        function removeBlock(button) {
+            const block = button.parentElement;
+            block.remove();
+            updateOutput();
+        }
+
+        // Hide dropdowns when clicking outside
+        document.addEventListener('click', (event) => {
+            const dropdowns = document.querySelectorAll('.custom-dropdown .dropdown-content');
+            dropdowns.forEach(dropdown => {
+                if (!dropdown.parentElement.contains(event.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addBlock('adj', true);
+            addBlock('noun', true);
+            addBlock('verb', true);
+            addBlock('noun');
+        });
+    </script>
+</body>
+
+</html>
